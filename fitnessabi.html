@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fitness ve Beslenme Rehberi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .food-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+        }
+        .food-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+        }
+        .favorite-icon {
+            transition: transform 0.2s;
+        }
+        .favorite-icon:hover {
+            transform: scale(1.2);
+        }
+        .message-box {
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            transition: opacity 0.5s, transform 0.5s;
+        }
+        .message-box.hidden {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+        .recipe-section {
+            display: none;
+            flex-direction: column;
+            gap: 1.5rem;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        .recipe-section.visible {
+            display: flex;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8">
+
+    <div class="max-w-4xl mx-auto bg-white rounded-3xl shadow-xl p-6 sm:p-10 relative">
+
+        <!-- Başlık ve Arama Çubuğu -->
+        <h1 class="text-3xl sm:text-4xl font-bold text-center text-gray-800 mb-6">Fitness ve Beslenme Rehberi</h1>
+        <p class="text-center text-gray-500 mb-8">Yiyeceklerin besin değerlerini inceleyin, favorilerinize ekleyin ve arama yapın.</p>
+        
+        <div class="mb-8">
+            <input type="text" id="searchInput" placeholder="Yiyecek arayın..." class="w-full px-5 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200 shadow-sm">
+        </div>
+        
+        <!-- Sekmeler -->
+        <div class="flex justify-center mb-8">
+            <button id="tabAll" class="px-6 py-3 rounded-l-xl font-medium text-white bg-blue-600 shadow-md hover:bg-blue-700 transition-colors duration-200">Tüm Yiyecekler</button>
+            <button id="tabFavorites" class="px-6 py-3 font-medium text-gray-700 bg-gray-200 shadow-md hover:bg-gray-300 transition-colors duration-200">Favorilerim</button>
+            <button id="tabRecommended" class="px-6 py-3 rounded-r-xl font-medium text-gray-700 bg-gray-200 shadow-md hover:bg-gray-300 transition-colors duration-200">Önerilenler</button>
+        </div>
+
+        <!-- Mesaj Kutusu -->
+        <div id="messageBox" class="message-box fixed flex items-center justify-center p-4 bg-green-500 text-white rounded-lg shadow-xl hidden">
+            <span id="messageText"></span>
+        </div>
+
+        <!-- İçerik Bölümleri -->
+        <div id="allFoodsSection" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+        
+        <div id="favoritesSection" class="hidden flex flex-col gap-6">
+            <div id="favoritesFoodsContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+            <div class="flex justify-center mt-4">
+                <button id="generateRecipeBtn" class="px-6 py-3 font-bold text-white bg-purple-600 rounded-full shadow-lg hover:bg-purple-700 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                    ✨ Seçili Yiyeceklerle Tarif Oluştur
+                </button>
+            </div>
+        </div>
+        
+        <div id="recommendedSection" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+
+        <!-- Tarif Bölümü -->
+        <div id="recipeSection" class="recipe-section mt-8 p-6 bg-gray-50 rounded-2xl border border-gray-200">
+            <h2 class="text-2xl font-bold text-gray-800 text-center mb-4">Oluşturulan Tarif</h2>
+            <div id="recipeContent" class="prose max-w-none text-gray-700">
+                <div id="recipeLoading" class="flex justify-center items-center py-8 hidden">
+                    <div class="loading-spinner"></div>
+                </div>
+                <div id="recipeText"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // Yiyecek verileri
+        const foods = [
+            { name: "Yumurta", calories: 155, protein: 13, carbs: 1.1, fat: 11, isFavorite: false },
+            { name: "Tavuk Göğsü", calories: 165, protein: 31, carbs: 0, fat: 3.6, isFavorite: false },
+            { name: "Somon", calories: 208, protein: 20, carbs: 0, fat: 13, isFavorite: false },
+            { name: "Mercimek", calories: 116, protein: 9, carbs: 20, fat: 0.4, isFavorite: false },
+            { name: "Yoğurt (Yağsız)", calories: 59, protein: 10, carbs: 4.7, fat: 0.4, isFavorite: false },
+            { name: "Badem", calories: 579, protein: 21, carbs: 22, fat: 50, isFavorite: false },
+            { name: "Avokado", calories: 160, protein: 2, carbs: 8.5, fat: 15, isFavorite: false },
+            { name: "Brokoli", calories: 34, protein: 2.8, carbs: 6.6, fat: 0.4, isFavorite: false },
+            { name: "Kinoa", calories: 120, protein: 4.1, carbs: 21, fat: 1.9, isFavorite: false },
+            { name: "Ton Balığı", calories: 184, protein: 28, carbs: 0, fat: 8, isFavorite: false },
+            { name: "Beyaz Peynir (Yağsız)", calories: 72, protein: 14, carbs: 4.3, fat: 0, isFavorite: false },
+            { name: "Dana Eti (Yağsız)", calories: 250, protein: 26, carbs: 0, fat: 17, isFavorite: false },
+            { name: "Hindi Eti", calories: 104, protein: 22, carbs: 0, fat: 1, isFavorite: false },
+            { name: "Karides", calories: 85, protein: 20, carbs: 0.3, fat: 0.5, isFavorite: false },
+            { name: "Edamame", calories: 122, protein: 11, carbs: 9, fat: 5, isFavorite: false },
+            { name: "Yulaf Ezmesi", calories: 389, protein: 17, carbs: 66, fat: 7, isFavorite: false },
+            { name: "Çikolatalı Süt (Yağsız)", calories: 60, protein: 7.5, carbs: 9.5, fat: 0.5, isFavorite: false },
+            { name: "Bezelye", calories: 81, protein: 5, carbs: 14, fat: 0.4, isFavorite: false },
+            { name: "Ispanak", calories: 23, protein: 2.9, carbs: 3.6, fat: 0.4, isFavorite: false },
+            { name: "Chia Tohumu", calories: 486, protein: 17, carbs: 42, fat: 31, isFavorite: false },
+            { name: "Zeytinyağı", calories: 884, protein: 0, carbs: 0, fat: 100, isFavorite: false }
+        ];
+
+        // HTML elemanlarını seçme için değişkenler
+        let allFoodsSection, favoritesSection, favoritesFoodsContainer, recommendedSection, searchInput, tabs, messageBox, messageText, generateRecipeBtn, recipeSection, recipeText, recipeLoading;
+
+        // Yiyecek kartı oluşturma fonksiyonu
+        function createFoodCard(food) {
+            const foodCard = document.createElement('div');
+            foodCard.classList.add('food-card', 'bg-gray-100', 'p-6', 'rounded-2xl', 'shadow-md', 'relative', 'border', 'border-gray-200');
+            foodCard.setAttribute('data-name', food.name);
+
+            // Favori butonu için HTML içeriği
+            const favoriteIcon = `
+                <div class="absolute top-4 right-4 text-2xl favorite-icon">
+                    ${food.isFavorite ? '❤️' : '🤍'}
+                </div>
+            `;
+
+            foodCard.innerHTML = `
+                ${favoriteIcon}
+                <h3 class="text-xl font-bold mb-2 text-gray-900">${food.name}</h3>
+                <p class="text-sm text-gray-600 mb-1">
+                    <span class="font-semibold text-gray-800">Kalori:</span> ${food.calories} kcal
+                </p>
+                <p class="text-sm text-gray-600 mb-1">
+                    <span class="font-semibold text-gray-800">Protein:</span> ${food.protein} g
+                </p>
+                <p class="text-sm text-gray-600 mb-1">
+                    <span class="font-semibold text-gray-800">Karbonhidrat:</span> ${food.carbs} g
+                </p>
+                <p class="text-sm text-gray-600">
+                    <span class="font-semibold text-gray-800">Yağ:</span> ${food.fat} g
+                </p>
+            `;
+
+            // Sol tık ile favori ekleme/çıkarma
+            foodCard.addEventListener('click', (event) => {
+                // Sadece kartın kendisine tıklandığında işlemi yap
+                if (event.target === foodCard || foodCard.contains(event.target)) {
+                    toggleFavorite(food.name);
+                }
+            });
+
+            return foodCard;
+        }
+
+        // Tüm yiyecekleri render etme
+        function renderFoods(foodsToRender, container) {
+            container.innerHTML = '';
+            foodsToRender.forEach(food => {
+                container.appendChild(createFoodCard(food));
+            });
+        }
+
+        // Favori durumunu değiştirme ve mesaj gösterme
+        function toggleFavorite(foodName) {
+            const food = foods.find(f => f.name === foodName);
+            if (food) {
+                food.isFavorite = !food.isFavorite;
+                const message = food.isFavorite ? `${food.name} favorilere eklendi!` : `${food.name} favorilerden kaldırıldı!`;
+                showFeedbackMessage(message, food.isFavorite ? 'bg-green-500' : 'bg-red-500');
+                
+                // Gerekli bölümleri yeniden render et
+                const activeTabElement = document.querySelector('.bg-blue-600');
+                if (activeTabElement) {
+                    const currentTab = activeTabElement.id;
+                    if (currentTab === 'tabAll') {
+                        renderAllFoods();
+                    } else if (currentTab === 'tabFavorites') {
+                        renderFavorites();
+                    }
+                }
+            }
+        }
+        
+        // Geri bildirim mesajını gösterme
+        function showFeedbackMessage(message, colorClass) {
+            messageText.textContent = message;
+            messageBox.classList.remove('hidden', 'bg-green-500', 'bg-red-500');
+            messageBox.classList.add('flex', colorClass);
+            
+            setTimeout(() => {
+                messageBox.classList.remove('flex', colorClass);
+                messageBox.classList.add('hidden');
+            }, 2000);
+        }
+
+        // Bölüm değiştirme fonksiyonu
+        function showSection(sectionId) {
+            // Tüm bölümleri gizle
+            document.querySelectorAll('div[id$="Section"]').forEach(section => {
+                if (section) section.classList.add('hidden');
+            });
+            // Tüm sekme butonlarını pasif yap
+            Object.values(tabs).forEach(tab => {
+                if (tab) {
+                    tab.classList.remove('bg-blue-600', 'text-white');
+                    tab.classList.add('bg-gray-200', 'text-gray-700');
+                }
+            });
+            
+            // İlgili bölümü göster
+            const targetSection = document.getElementById(sectionId);
+            if (targetSection) targetSection.classList.remove('hidden');
+            
+            // İlgili sekme butonunu aktif yap
+            const tabId = sectionId.replace('Section', 'Tab');
+            const activeTab = document.getElementById(tabId);
+            if (activeTab) {
+                activeTab.classList.remove('bg-gray-200', 'text-gray-700');
+                activeTab.classList.add('bg-blue-600', 'text-white');
+            }
+            
+            // İçeriği yenile ve tarifi gizle
+            recipeSection.classList.remove('visible');
+            recipeSection.classList.add('hidden');
+            if (sectionId === 'allFoodsSection') {
+                renderAllFoods();
+            } else if (sectionId === 'favoritesSection') {
+                renderFavorites();
+            } else if (sectionId === 'recommendedSection') {
+                renderRecommended();
+            }
+        }
+
+        // Arama çubuğu fonksiyonu
+        function searchFoods() {
+            const searchTerm = searchInput.value.toLowerCase();
+            const filteredFoods = foods.filter(food =>
+                food.name.toLowerCase().includes(searchTerm)
+            );
+            renderFoods(filteredFoods, allFoodsSection);
+        }
+        
+        // Favori yiyecekleri render etme
+        function renderFavorites() {
+            const favoriteFoods = foods.filter(food => food.isFavorite);
+            if (favoriteFoods.length > 0) {
+                renderFoods(favoriteFoods, favoritesFoodsContainer);
+                generateRecipeBtn.disabled = false;
+            } else {
+                favoritesFoodsContainer.innerHTML = '<p class="text-center text-gray-500 col-span-full">Henüz favori yiyeceğiniz yok. Tüm yiyeceklerden eklemeyi deneyin.</p>';
+                generateRecipeBtn.disabled = true;
+            }
+        }
+
+        // Önerilen yiyecekleri render etme (Örnek: protein/kalori oranı yüksek olanlar)
+        function renderRecommended() {
+            // Örnek bir mantık: 1g proteini 10 kcal'den az olan yiyecekler
+            const recommendedFoods = foods.filter(food => food.protein > 0 && (food.calories / food.protein) <= 10);
+            renderFoods(recommendedFoods, recommendedSection);
+        }
+
+        // Tüm yiyecekleri render etme (arama ile birlikte kullanılacak)
+        function renderAllFoods() {
+            renderFoods(foods, allFoodsSection);
+        }
+
+        // Gemini API ile tarif oluşturma fonksiyonu
+        async function generateRecipe() {
+            const favoriteFoods = foods.filter(food => food.isFavorite);
+            if (favoriteFoods.length === 0) {
+                showFeedbackMessage('Tarif oluşturmak için en az bir favori yiyecek ekleyin!', 'bg-red-500');
+                return;
+            }
+            
+            // Tarif bölümünü görünür yap ve yükleme animasyonunu göster
+            recipeSection.classList.remove('hidden');
+            recipeSection.classList.add('visible');
+            recipeText.innerHTML = '';
+            recipeLoading.classList.remove('hidden');
+            generateRecipeBtn.disabled = true;
+
+            const ingredientList = favoriteFoods.map(food => food.name).join(', ');
+            
+            const systemPrompt = "Profesyonel bir şef gibi davranın. Sadece verilen malzemeleri kullanarak basit bir tarif oluşturun. Başlık, malzemeler listesi ve net, adım adım talimatlar sağlayın. Ekstra malzeme eklemeyin.";
+            const userQuery = `Bu malzemeleri kullanarak bir tarif oluştur: ${ingredientList}`;
+            
+            const apiKey = "";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: {
+                    parts: [{ text: systemPrompt }]
+                }
+            };
+
+            let response;
+            try {
+                response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API hatası: ${response.status} ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                const text = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                if (text) {
+                    // LLM çıktısını Markdown'dan HTML'e çevir ve göster
+                    const formattedText = text.replace(/\*\*(.*?)\*\*/g, '<h3>$1</h3>').replace(/\*/g, '<li>').replace(/#/g, '');
+                    recipeText.innerHTML = formattedText;
+                } else {
+                    recipeText.innerHTML = '<p class="text-red-500">Tarif oluşturulurken bir hata oluştu. Lütfen tekrar deneyin.</p>';
+                }
+            } catch (error) {
+                console.error("Tarif oluşturma hatası:", error);
+                recipeText.innerHTML = `<p class="text-red-500">Tarif oluşturulurken bir hata oluştu: ${error.message}</p>`;
+            } finally {
+                recipeLoading.classList.add('hidden');
+                generateRecipeBtn.disabled = false;
+            }
+        }
+
+        // Sayfa yüklendiğinde varsayılan bölümü göster
+        window.onload = () => {
+            // HTML elemanlarını atama
+            allFoodsSection = document.getElementById('allFoodsSection');
+            favoritesSection = document.getElementById('favoritesSection');
+            favoritesFoodsContainer = document.getElementById('favoritesFoodsContainer');
+            recommendedSection = document.getElementById('recommendedSection');
+            searchInput = document.getElementById('searchInput');
+            tabs = {
+                all: document.getElementById('tabAll'),
+                favorites: document.getElementById('tabFavorites'),
+                recommended: document.getElementById('tabRecommended')
+            };
+            messageBox = document.getElementById('messageBox');
+            messageText = document.getElementById('messageText');
+            generateRecipeBtn = document.getElementById('generateRecipeBtn');
+            recipeSection = document.getElementById('recipeSection');
+            recipeText = document.getElementById('recipeText');
+            recipeLoading = document.getElementById('recipeLoading');
+
+            // Olay dinleyicileri
+            searchInput.addEventListener('input', searchFoods);
+            tabs.all.addEventListener('click', () => showSection('allFoodsSection'));
+            tabs.favorites.addEventListener('click', () => showSection('favoritesSection'));
+            tabs.recommended.addEventListener('click', () => showSection('recommendedSection'));
+            generateRecipeBtn.addEventListener('click', generateRecipe);
+
+            // Sayfa yüklendiğinde varsayılan bölümü göster
+            showSection('allFoodsSection');
+        };
+        
+    </script>
+</body>
+</html>
